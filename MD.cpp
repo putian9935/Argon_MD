@@ -1,6 +1,6 @@
 #include "MD.h"
 
-// hello world! 
+// hello world! CYC
 
 MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save), stream_opened(false), calculate_pressure(false)
 {
@@ -278,7 +278,7 @@ void MD_system::calculate_auto_correlation(int max_time, char * const file_name)
         auto_correlation[tau] /= (3. * N * (trajectory.size() - tau));
         save_correl_stream << auto_correlation[tau] << '\n';
     }
-    
+
     printf("\n");
     save_correl_stream.close();
 }
