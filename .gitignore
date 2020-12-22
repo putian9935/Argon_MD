@@ -1,0 +1,7 @@
+# All files will be ignored except header and its implementation 
+/*
+!MD.h
+!MD.cpp
+
+# and this ignore file so that you can use it 
+!.gitignore
