@@ -1,4 +1,5 @@
 #include "MD.h"
+// hello!
 
 MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), stream_opened(false), calculate_pressure(false)
 {
