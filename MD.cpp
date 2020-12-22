@@ -2,7 +2,7 @@
 
 // hello world! 
 
-MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), stream_opened(false), calculate_pressure(false)
+MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save), stream_opened(false), calculate_pressure(false)
 {
     particles = std::vector<Particle>(N);
     daemons = std::vector<Particle>(N_hoover);
@@ -279,7 +279,7 @@ void MD_system::calculate_auto_correlation(int max_time, char * const file_name)
         save_correl_stream << auto_correlation[tau] << '\n';
     }
     
-    printf('\n');
+    printf("\n");
     save_correl_stream.close();
 }
 
@@ -317,7 +317,7 @@ Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps)
     for (int i = 0; i < simulation_steps; i++)
     {
         sys.update();
-        if (!(i % 200))
+        if (!(i % sys.every_save))  // copy less frequently
             sys.append_current_state();
         if ((i + 1) * 100 / simulation_steps > percent)
         {

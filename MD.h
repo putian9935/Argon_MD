@@ -36,10 +36,6 @@ public:
     std::vector<Force> force;
     std::vector<Particle> daemons;
 
-    // TODO: push particle state at each update
-    std::vector<std::vector<Particle>> trajectory;
-    std::vector<double> auto_correlation;
-
     std::vector<double> Q;//daemons mass
     double m=1;//particle mass
 
@@ -52,7 +48,7 @@ public:
     void update();
     void calculate_force();
 
-    MD_system(int N, double temperature, double a, int N_hoover=3, double dt=0.01);
+    MD_system(int N, double temperature, double a, int N_hoover=3, double dt=0.01,int=200);
     ~MD_system();
 
 
@@ -72,8 +68,11 @@ public:
     void clear_pressure();
     int test_counter=0;
 
-
-    // functions needed to save trajectory, invoked in
+    
+    // Auto-correlation, etc.
+    std::vector<std::vector<Particle>> trajectory;
+    std::vector<double> auto_correlation;
+    int every_save;
     void append_current_state();
 
 private:
