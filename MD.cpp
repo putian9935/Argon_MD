@@ -1,6 +1,7 @@
 #include "MD.h"
 
 // hello world! 
+// is my username correct 
 
 MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save), stream_opened(false), calculate_pressure(false)
 {
