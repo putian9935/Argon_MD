@@ -9,6 +9,7 @@
 #include <cstdlib>
 #include <time.h>
 #include <iostream>
+#include <iomanip>
 
 struct Particle
 {
@@ -73,7 +74,7 @@ public:
     bool has_auto_correlation_calced;
     void append_current_state();
     void calculate_auto_correlation(int=500,const char * const="correlation.dat");
-    double calculate_self_diffusion_constant();
+    double calculate_self_diffusion_constant(bool=true, int=-1);
 
     // Some conversion constant 
     static const double pressure_conversion_constant, time_conversion_constant, velocity_conversion_constant, temperature_conversion_constant;

@@ -30,6 +30,8 @@ void MD_system::initialize_system()
     std::normal_distribution<double> stdnorm_dist(0, 1);
     double sigma_p = k * temperature * m; // TODO: CHANGE THIS
 
+    // test:: shift velocity!!
+    double average_px = 0., average_py = 0., average_pz = 0.;
     // particles
     for (int i = 0; i < N; i++)
     {
@@ -39,6 +41,18 @@ void MD_system::initialize_system()
         particles[i].px = sigma_p * stdnorm_dist(generator);
         particles[i].py = sigma_p * stdnorm_dist(generator);
         particles[i].pz = sigma_p * stdnorm_dist(generator);
+        average_px += particles[i].px;
+        average_py += particles[i].py;
+        average_pz += particles[i].pz;
+    }
+    average_px /= N;
+    average_py /= N;
+    average_pz /= N;
+    for (auto &particle : particles)
+    {
+        particle.px -= average_px;
+        particle.py -= average_py;
+        particle.pz -= average_pz;
     }
 
     // daemons
@@ -280,7 +294,7 @@ void MD_system::calculate_auto_correlation(int max_time, const char *const file_
             }
         }
         auto_correlation[tau] /= (3. * N * (trajectory.size() - tau));
-        save_correl_stream << auto_correlation[tau] << '\n';
+        save_correl_stream << std::setprecision(17) << auto_correlation[tau] << '\n';
     }
     printf("\n");
     save_correl_stream.close();
@@ -288,20 +302,33 @@ void MD_system::calculate_auto_correlation(int max_time, const char *const file_
     has_auto_correlation_calced = true;
 }
 
-double MD_system::calculate_self_diffusion_constant()
+double MD_system::calculate_self_diffusion_constant(bool use_coarse_estimate, int cut_off)
 {
     // Integrate auto-correlation over tau
     if (!has_auto_correlation_calced)
         calculate_auto_correlation();
+
     double rescaled_dt = dt * every_save * time_conversion_constant; // Difference between tau's
-    int max_time = auto_correlation.size();
+    if (use_coarse_estimate)
+    { // use exponential decay to estimate
+        printf("Using coarse estimate...\n");
+        return auto_correlation[0] / (log(auto_correlation[0]) - log(auto_correlation[1])) * rescaled_dt * velocity_conversion_constant * velocity_conversion_constant;
+    }
+
+    if (cut_off > auto_correlation.size())
+    { // too large, give a comparison
+        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", auto_correlation[0] / (log(auto_correlation[0]) - log(auto_correlation[1])) * rescaled_dt * velocity_conversion_constant * velocity_conversion_constant);
+        cut_off = auto_correlation.size();
+    }
+
     // In order to use Simpson rule, total tau's must be an odd number
-    max_time -= (max_time & 1);
-    double self_diffusion_constant = auto_correlation[0] + auto_correlation[max_time - 1];
-    for (int i = 1; i < max_time - 1; ++i)
+    cut_off -= (cut_off & 1);
+    double self_diffusion_constant = auto_correlation[0] + auto_correlation[cut_off - 1];
+    for (int i = 1; i < cut_off - 1; ++i)
     {
         self_diffusion_constant += (2 << (i & 1)) * auto_correlation[i];
     }
+
     return self_diffusion_constant * rescaled_dt / 3. * velocity_conversion_constant * velocity_conversion_constant; // convert velocity into SI units!
 }
 
@@ -321,6 +348,7 @@ const double MD_system::temperature_conversion_constant = 1.2e2;
 
 Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps)
 {
+    printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
 
     sys.calculate_pressure = false;
 
