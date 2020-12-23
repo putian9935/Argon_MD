@@ -60,7 +60,7 @@ public:
     void record_done() {output_stream.close();};
 
     // diffusion
-    void calculate_auto_correlation(int=500,char * const="correlation.dat");
+    void calculate_auto_correlation(int=500,const char * const="correlation.dat");
 
     // pressure
     bool calculate_pressure;

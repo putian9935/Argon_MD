@@ -254,7 +254,7 @@ void MD_system::clear_pressure()
     accumulate_momentum_crossed.pz = 0;
 }
 
-void MD_system::calculate_auto_correlation(int max_time, char * const file_name)
+void MD_system::calculate_auto_correlation(int max_time, const char * const file_name)
 {
     std::ofstream save_correl_stream(file_name);
     auto_correlation.reserve(max_time);
