@@ -59,9 +59,6 @@ public:
     bool record_distance();
     void record_done() {output_stream.close();};
 
-    // diffusion
-    void calculate_auto_correlation(int=500,const char * const="correlation.dat");
-
     // pressure
     bool calculate_pressure;
     Particle accumulate_momentum_crossed; //using px,py,pz only
@@ -69,12 +66,17 @@ public:
     int test_counter=0;
 
     
-    // Auto-correlation, etc.
+    // Auto-correlation, diffusion, etc.
     std::vector<std::vector<Particle>> trajectory;
     std::vector<double> auto_correlation;
     int every_save;
+    bool has_auto_correlation_calced;
     void append_current_state();
+    void calculate_auto_correlation(int=500,const char * const="correlation.dat");
+    double calculate_self_diffusion_constant();
 
+    // Some conversion constant 
+    static const double pressure_conversion_constant, time_conversion_constant, velocity_conversion_constant, temperature_conversion_constant;
 private:
 
     std::fstream output_stream;

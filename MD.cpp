@@ -4,7 +4,7 @@
 // is my username correct
 //cyc join in
 
-MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save), stream_opened(false), calculate_pressure(false)
+MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save), stream_opened(false), calculate_pressure(false), has_auto_correlation_calced(false)
 {
     particles = std::vector<Particle>(N);
     daemons = std::vector<Particle>(N_hoover);
@@ -255,10 +255,12 @@ void MD_system::clear_pressure()
     accumulate_momentum_crossed.pz = 0;
 }
 
-void MD_system::calculate_auto_correlation(int max_time, const char * const file_name)
+void MD_system::calculate_auto_correlation(int max_time, const char *const file_name)
 {
+    // Calculate auto-correlation at several time difference tau
     std::ofstream save_correl_stream(file_name);
     auto_correlation.reserve(max_time);
+
     int percent = 0;
     printf("Calculating auto-correlation: 0%%");
     for (int tau = 0; tau < max_time; ++tau)
@@ -280,15 +282,41 @@ void MD_system::calculate_auto_correlation(int max_time, const char * const file
         auto_correlation[tau] /= (3. * N * (trajectory.size() - tau));
         save_correl_stream << auto_correlation[tau] << '\n';
     }
-
     printf("\n");
     save_correl_stream.close();
+
+    has_auto_correlation_calced = true;
+}
+
+double MD_system::calculate_self_diffusion_constant()
+{
+    // Integrate auto-correlation over tau
+    if (!has_auto_correlation_calced)
+        calculate_auto_correlation();
+    double rescaled_dt = dt * every_save * time_conversion_constant; // Difference between tau's
+    int max_time = auto_correlation.size();
+    // In order to use Simpson rule, total tau's must be an odd number
+    max_time -= (max_time & 1);
+    double self_diffusion_constant = auto_correlation[0] + auto_correlation[max_time - 1];
+    for (int i = 1; i < max_time - 1; ++i)
+    {
+        self_diffusion_constant += (2 << (i & 1)) * auto_correlation[i];
+    }
+    return self_diffusion_constant * rescaled_dt / 3. * velocity_conversion_constant * velocity_conversion_constant; // convert velocity into SI units!
 }
 
 void MD_system::append_current_state()
 {
     trajectory.push_back(particles);
 }
+
+// Conversion constants
+// please refer for details to http://cms.sjtu.edu.cn/doc/courseware/2019/LJ.pdf
+const double MD_system::pressure_conversion_constant = 4.2e7;
+const double MD_system::time_conversion_constant = 2.17e-12;
+const double MD_system::velocity_conversion_constant = 1.57e2;
+const double MD_system::temperature_conversion_constant = 1.2e2;
+
 // non class members
 
 Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps)
@@ -319,7 +347,7 @@ Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps)
     for (int i = 0; i < simulation_steps; i++)
     {
         sys.update();
-        if (!(i % sys.every_save))  // copy less frequently
+        if (!(i % sys.every_save)) // copy less frequently
             sys.append_current_state();
         if ((i + 1) * 100 / simulation_steps > percent)
         {
