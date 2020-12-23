@@ -4,7 +4,7 @@
 // is my username correct
 //cyc join in
 
-MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save), stream_opened(false), calculate_pressure(false), has_auto_correlation_calced(false)
+MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save, bool shift_momentum) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save), shift_momentum(shift_momentum), stream_opened(false), calculate_pressure(false), has_auto_correlation_calced(false)
 {
     particles = std::vector<Particle>(N);
     daemons = std::vector<Particle>(N_hoover);
@@ -30,8 +30,6 @@ void MD_system::initialize_system()
     std::normal_distribution<double> stdnorm_dist(0, 1);
     double sigma_p = k * temperature * m; // TODO: CHANGE THIS
 
-    // test:: shift velocity!!
-    double average_px = 0., average_py = 0., average_pz = 0.;
     // particles
     for (int i = 0; i < N; i++)
     {
@@ -41,18 +39,25 @@ void MD_system::initialize_system()
         particles[i].px = sigma_p * stdnorm_dist(generator);
         particles[i].py = sigma_p * stdnorm_dist(generator);
         particles[i].pz = sigma_p * stdnorm_dist(generator);
-        average_px += particles[i].px;
-        average_py += particles[i].py;
-        average_pz += particles[i].pz;
     }
-    average_px /= N;
-    average_py /= N;
-    average_pz /= N;
-    for (auto &particle : particles)
+    if (shift_momentum)
     {
-        particle.px -= average_px;
-        particle.py -= average_py;
-        particle.pz -= average_pz;
+        double average_px = 0., average_py = 0., average_pz = 0.;
+        for (const auto & particle : particles)
+        {
+            average_px += particle.px;
+            average_py += particle.py;
+            average_pz += particle.pz;
+        }
+        average_px /= N;
+        average_py /= N;
+        average_pz /= N;
+        for (auto &particle : particles)
+        {
+            particle.px -= average_px;
+            particle.py -= average_py;
+            particle.pz -= average_pz;
+        }
     }
 
     // daemons
