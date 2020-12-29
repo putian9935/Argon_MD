@@ -194,7 +194,7 @@ double MD_system::interaction_force(double dist)
     // F(r)=4*epsilon*(12(sigma/r)^12/r-6(sigma/r)^6/r)
     double sr6 = std::pow(1.0 / dist, 6);
 
-    return epsilon * (48 * sr6 * sr6 / dist - 24 * sr6 / dist);
+    return (48 * sr6 * sr6 / dist - 24 * sr6 / dist);
 }
 
 void MD_system::accumulate_pair_force(int i, int j)
