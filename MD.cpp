@@ -357,14 +357,14 @@ const double MD_system::pressure_conversion_constant = 4.2e7;
 const double MD_system::time_conversion_constant = 2.17e-12;
 const double MD_system::velocity_conversion_constant = 1.57e2;
 const double MD_system::temperature_conversion_constant = 1.2e2;
-const double MD_system::lenth_conversion_constant = 3.4e-10;
+const double MD_system::length_conversion_constant = 3.4e-10;
 
 // non class members
 
 Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps)
 {
     printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
-    printf("system parameter: T=%.1f K, V=(%.1f A)^3\n",sys.temperature*sys.temperature_conversion_constant,1e10*sys.a*sys.lenth_conversion_constant);
+    printf("system parameter: T=%.1f K, V=(%.1f A)^3\n",sys.temperature*sys.temperature_conversion_constant,1e10*sys.a*sys.length_conversion_constant);
     sys.calculate_pressure = false;
 
     int percent = 0;

@@ -77,7 +77,7 @@ public:
 
     // Some conversion constants
     static const double pressure_conversion_constant, time_conversion_constant, velocity_conversion_constant,
-        temperature_conversion_constant, lenth_conversion_constant;
+        temperature_conversion_constant, length_conversion_constant;
 
 private:
     std::fstream output_stream;
