@@ -66,14 +66,23 @@ public:
     void clear_pressure();
     int test_counter = 0;
 
+    
+    void append_current_state();
+
     // Auto-correlation, diffusion, etc.
     std::vector<std::vector<Particle> > trajectory;
-    std::vector<double> auto_correlation;
+    std::vector<double> velocity_auto_correlation;
     int every_save;
-    bool has_auto_correlation_calced;
-    void append_current_state();
-    void calculate_auto_correlation(int = 500, const char *const = "correlation.dat");
+    bool has_velocity_auto_correlation_calced;
+    void calculate_velocity_auto_correlation(int = 500, const char *const = "correlation.dat");
     double calculate_self_diffusion_constant(bool = true, int = -1);
+
+    // Viscosity 
+    std::vector<Particle> viscosity_traj;
+    std::vector<double> viscosity_auto_correlation;
+    bool has_viscosity_auto_correlation_calced;
+    void calculate_viscosity_auto_correlation(int = 500, const char *const = "viscosity_correlation.dat");
+    double calculate_shear_viscosity_coefficient(bool = true, int = -1);
 
     // Some conversion constants
     static const double pressure_conversion_constant, time_conversion_constant, velocity_conversion_constant,
@@ -98,6 +107,10 @@ private:
     void accumulate_daemon_force(int i);
     void compute_dd_force();
     double interaction_force(double dist);
+    double interaction_potential(double dist);
+
+    Particle accumulate_heat_flux(std::vector<Particle> &);
+    Particle accumulate_stress_tensor();
 };
 
 Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps);
