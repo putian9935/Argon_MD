@@ -415,3 +415,64 @@ Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps)
 
     return pressure;
 }
+
+
+/*
+Same parameter signature and meaning as above, print several transport properties, 
+
+Still, pressure is returned
+*/
+Particle calculate_transport_properties(MD_system &sys, int init_steps, int simulation_steps)
+{
+    printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
+    printf("System parameters: T=%.1f K, V=(%.1f A)^3\n",sys.temperature*sys.temperature_conversion_constant,1e10*sys.a*sys.length_conversion_constant);
+    sys.calculate_pressure = false;
+
+    int percent = 0;
+    printf("Calculating pressure:----------------------------------------\n");
+    printf("preparing: 0%%");
+    for (int i = 0; i < init_steps; i++)
+    {
+        sys.update();
+        if ((i + 1) * 100 / init_steps > percent)
+        {
+            percent = (i + 1) * 100 / init_steps;
+            printf("\rpreparing %d%%    ", percent);
+            fflush(stdout);
+        }
+    }
+    printf("\n");
+
+    sys.clear_pressure();
+    sys.calculate_pressure = true;
+
+    printf("simulating: 0%%");
+    percent = 0;
+    for (int i = 0; i < simulation_steps; i++)
+    {
+        sys.update();
+        if (!(i % sys.every_save)) // copy less frequently
+            sys.append_current_state();
+        if ((i + 1) * 100 / simulation_steps > percent)
+        {
+            percent = (i + 1) * 100 / simulation_steps;
+            printf("\rsimulating %d%%   ", percent);
+            fflush(stdout);
+        }
+    }
+    printf("\n");
+
+    Particle pressure;
+    pressure.px = sys.accumulate_momentum_crossed.px / sys.a / sys.a / sys.dt / simulation_steps;
+    pressure.py = sys.accumulate_momentum_crossed.py / sys.a / sys.a / sys.dt / simulation_steps;
+    pressure.pz = sys.accumulate_momentum_crossed.pz / sys.a / sys.a / sys.dt / simulation_steps;
+
+    sys.calculate_pressure = false;
+
+    std::cout << "The pressure of the system is: " << pressure.px << ";" << pressure.py << ";" << pressure.pz << std::endl;
+    std::cout << "Averaged pressure: " << (pressure.px + pressure.py + pressure.pz)/3*sys.pressure_conversion_constant<<"Pa" << std::endl;
+    std::cout << "(crossed " << sys.test_counter << " times in total)" << std::endl;
+    printf("-------------------------------------------------------------\n\n");
+
+    return pressure;
+}

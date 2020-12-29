@@ -102,4 +102,6 @@ private:
 
 Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps);
 
+Particle calculate_transport_properties(MD_system&, int, int);
+
 #endif // MD_H_INCLUDED
