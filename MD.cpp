@@ -4,12 +4,15 @@
 // is my username correct
 //cyc join in
 
-MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save, bool shift_momentum) : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save), shift_momentum(shift_momentum), stream_opened(false), calculate_pressure(false), has_auto_correlation_calced(false)
+MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save, bool shift_momentum)
+    : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save), 
+      shift_momentum(shift_momentum), stream_opened(false), calculate_pressure(false), 
+      has_auto_correlation_calced(false)
 {
     particles = std::vector<Particle>(N);
     daemons = std::vector<Particle>(N_hoover);
     force = std::vector<Force>(N + N_hoover);
-    trajectory = std::vector<std::vector<Particle>>(0);
+    trajectory = std::vector<std::vector<Particle> >(0);
     Q = std::vector<double>(N_hoover);
 
     // initialize coordinates & momentum
@@ -28,7 +31,7 @@ void MD_system::initialize_system()
     std::default_random_engine generator((unsigned)time(NULL));
     std::uniform_real_distribution<double> unif_dist(0, a);
     std::normal_distribution<double> stdnorm_dist(0, 1);
-    double sigma_p = k * temperature * m; // TODO: CHANGE THIS
+    double sigma_p = sqrt(k * temperature * m);
 
     // particles
     for (int i = 0; i < N; i++)
@@ -338,6 +341,14 @@ double MD_system::calculate_self_diffusion_constant(bool use_coarse_estimate, in
 void MD_system::append_current_state()
 {
     trajectory.push_back(particles);
+}
+
+double MD_system::get_temperature() {
+    double p_squared = 0.0;
+    for (Particle& par: particles) {
+        p_squared += par.px * par.px + par.py * par.py + par.pz * par.pz;
+    }
+    return p_squared / (3 * m * N * k);
 }
 
 // Conversion constants

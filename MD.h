@@ -53,7 +53,7 @@ public:
     ~MD_system();
 
     // temperature
-    double get_temperature();
+    double get_temperature() ;
     bool shift_momentum;
 
     // radial distribution
@@ -67,7 +67,7 @@ public:
     int test_counter = 0;
 
     // Auto-correlation, diffusion, etc.
-    std::vector<std::vector<Particle>> trajectory;
+    std::vector<std::vector<Particle> > trajectory;
     std::vector<double> auto_correlation;
     int every_save;
     bool has_auto_correlation_calced;
