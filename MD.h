@@ -76,7 +76,8 @@ public:
     double calculate_self_diffusion_constant(bool = true, int = -1);
 
     // Some conversion constants
-    static const double pressure_conversion_constant, time_conversion_constant, velocity_conversion_constant, temperature_conversion_constant;
+    static const double pressure_conversion_constant, time_conversion_constant, velocity_conversion_constant,
+        temperature_conversion_constant, lenth_conversion_constant;
 
 private:
     std::fstream output_stream;
