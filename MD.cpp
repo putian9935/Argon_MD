@@ -192,9 +192,7 @@ double MD_system::interaction_force(double dist)
 {
     // V(r)=4*epsilon*((sigma/r)^12-(sigma/r)^6)
     // F(r)=4*epsilon*(12(sigma/r)^12/r-6(sigma/r)^6/r)
-    double epsilon = 1; // TODO: change the parameters
-    double sigma = 1;
-    double sr6 = std::pow(sigma / dist, 6);
+    double sr6 = std::pow(1.0 / dist, 6);
 
     return epsilon * (48 * sr6 * sr6 / dist - 24 * sr6 / dist);
 }
