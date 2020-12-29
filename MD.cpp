@@ -207,9 +207,9 @@ void MD_system::accumulate_pair_force(int i, int j)
 
     double r = std::sqrt(rx * rx + ry * ry + rz * rz);
 
-    if (r < r_cutoff)
+    if (r < r_cutoff_big)
     {
-        double F = interaction_force(r);
+        double F = interaction_force(std::max(r_cutoff_small,r));
         force[j].fx += F * rx / r;
         force[j].fy += F * ry / r;
         force[j].fz += F * rz / r;

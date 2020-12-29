@@ -42,7 +42,8 @@ public:
     //parameters for solution
     double dt;
 
-    double r_cutoff = 5.0; //cut off when calculating forces among particles
+    double r_cutoff_big = 5.0; //cut off when calculating forces among particles
+    double r_cutoff_small = 0.9; //cut off when calculating forces among particles
 
     void initialize_system();
     void update();
