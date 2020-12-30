@@ -686,7 +686,7 @@ Particle get_pressure_collision(MD_system &sys, int init_steps, int simulation_s
     return pressure;
 }
 
-double MD_system::pressure_viral()
+double MD_system::pressure_virial()
 {
     double pressure_i = 0;
     for (int j = 0; j < N; j++)
@@ -741,7 +741,7 @@ Particle get_pressure_virial(MD_system &sys, int init_steps, int simulation_step
     {
         sys.update();
 
-        double pressure_i = sys.pressure_viral();
+        double pressure_i = sys.pressure_virial();
         sum_pressure += pressure_i;
         sum_pressure2 += pressure_i * pressure_i;
 
@@ -770,15 +770,17 @@ Particle get_pressure_virial(MD_system &sys, int init_steps, int simulation_step
 Same parameter signature and meaning as above, print several transport properties.
 Still, pressure is returned.
 */
-Particle calculate_transport_properties(MD_system &sys, int init_steps, int simulation_steps)
+Particle calculate_transport_properties(MD_system &sys, int init_steps, int simulation_steps, double burn_in_dt)
 {
-    printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
+    printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps * burn_in_dt + simulation_steps * sys.dt)  * MD_system::time_conversion_constant) / 1e-12, (init_steps * burn_in_dt * MD_system::time_conversion_constant) / 1e-12);
     printf("System parameters: T=%.1f K, V=(%.1f A)^3\n", sys.temperature * sys.temperature_conversion_constant, 1e10 * sys.a * sys.length_conversion_constant);
     sys.calculate_pressure = false;
 
     int percent = 0;
     printf("Calculating pressure:----------------------------------------\n");
     printf("preparing: 0%%");
+    double simulation_dt = sys.dt; 
+    sys.dt = burn_in_dt;
     for (int i = 0; i < init_steps; i++)
     {
         sys.update();
@@ -789,6 +791,7 @@ Particle calculate_transport_properties(MD_system &sys, int init_steps, int simu
             fflush(stdout);
         }
     }
+    sys.dt = simulation_dt;
     printf("\n");
 
     sys.clear_pressure();

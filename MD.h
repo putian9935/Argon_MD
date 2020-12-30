@@ -65,7 +65,7 @@ public:
     Particle accumulate_momentum_crossed; //using px,py,pz only
     void clear_pressure();
     int test_counter = 0;
-    double pressure_viral();
+    double pressure_virial();
 
     void append_current_state();
 
@@ -126,6 +126,6 @@ private:
 Particle get_pressure_collision(MD_system &sys, int init_steps, int simulation_steps);
 Particle get_pressure_virial(MD_system &sys, int init_steps, int simulation_steps); //px=P,py=var(P)
 
-Particle calculate_transport_properties(MD_system &, int, int);
+Particle calculate_transport_properties(MD_system &, int, int, double=0.01);
 
 #endif // MD_H_INCLUDED
