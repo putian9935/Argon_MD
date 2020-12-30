@@ -65,8 +65,9 @@ public:
     Particle accumulate_momentum_crossed; //using px,py,pz only
     void clear_pressure();
     int test_counter = 0;
+    double pressure_viral();
 
-    
+
     void append_current_state();
 
     // Auto-correlation, diffusion, etc.
@@ -77,7 +78,7 @@ public:
     void calculate_velocity_auto_correlation(int = 500, const char *const = "correlation.dat");
     double calculate_self_diffusion_constant(bool = true, int = -1);
 
-    // Viscosity 
+    // Viscosity
     std::vector<Particle> viscosity_traj;
     std::vector<double> viscosity_auto_correlation;
     bool has_viscosity_auto_correlation_calced;
@@ -113,7 +114,8 @@ private:
     Particle accumulate_stress_tensor();
 };
 
-Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps);
+Particle get_pressure_collision(MD_system &sys, int init_steps, int simulation_steps);
+Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps);//px=P,py=var(P)
 
 Particle calculate_transport_properties(MD_system&, int, int);
 

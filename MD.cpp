@@ -322,7 +322,7 @@ void MD_system::calculate_viscosity_auto_correlation(int max_time, const char *c
     // Calculate auto-correlation at several time difference tau
     std::ofstream save_correl_stream(file_name);
     viscosity_auto_correlation.reserve(max_time);
-    
+
     int percent = 0;
     printf("Processing: 0%%");
     for (int tau = 0; tau < max_time; ++tau)
@@ -385,7 +385,7 @@ double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate
     // Integrate auto-correlation over tau
     if (!has_viscosity_auto_correlation_calced)
         calculate_viscosity_auto_correlation();
-        
+
     double rescaled_dt = dt * every_save * time_conversion_constant; // Difference between tau's
     if (use_coarse_estimate)
     { // use exponential decay to estimate
@@ -414,13 +414,13 @@ double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate
 Particle MD_system::accumulate_stress_tensor()
 {
     // The three components represents: sigma_{xy}, sigma_{yz}, and sigma_{zx}, respectively
-    Particle ret; 
+    Particle ret;
     ret.x = ret.y = ret.z = 0.;
     for(int i=0; i<N;++i)
     {
-        ret.x += particles[i].px * particles[i].py + particles[i].x * force[i].fy; 
-        ret.y += particles[i].py * particles[i].pz + particles[i].y * force[i].fz; 
-        ret.z += particles[i].pz * particles[i].px + particles[i].z * force[i].fx; 
+        ret.x += particles[i].px * particles[i].py + particles[i].x * force[i].fy;
+        ret.y += particles[i].py * particles[i].pz + particles[i].y * force[i].fz;
+        ret.z += particles[i].pz * particles[i].px + particles[i].z * force[i].fx;
     }
     return ret;
 }
@@ -449,14 +449,14 @@ const double MD_system::length_conversion_constant = 3.4e-10;
 
 // non class members
 
-Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps)
+Particle get_pressure_collision(MD_system &sys, int init_steps, int simulation_steps)
 {
     printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
     printf("system parameter: T=%.1f K, V=(%.1f A)^3\n",sys.temperature*sys.temperature_conversion_constant,1e10*sys.a*sys.length_conversion_constant);
     sys.calculate_pressure = false;
 
     int percent = 0;
-    printf("Calculating pressure:----------------------------------------\n");
+    printf("Calculating pressure(collision):----------------------------------------\n");
     printf("preparing: 0%%");
     for (int i = 0; i < init_steps; i++)
     {
@@ -503,9 +503,93 @@ Particle get_pressure(MD_system &sys, int init_steps, int simulation_steps)
 }
 
 
+double MD_system::pressure_viral()
+{
+    double pressure_i=0;
+    for(int j=0;j<N;j++)
+    {
+        pressure_i+=particles[j].px*particles[j].px+particles[j].py*particles[j].py
+            +particles[j].pz*particles[j].pz;
+
+        for(int k=0;k<j;k++)
+        {
+            double rx = nearest_dist(particles[j].x - particles[k].x);
+            double ry = nearest_dist(particles[j].y - particles[k].y);
+            double rz = nearest_dist(particles[j].z - particles[k].z);
+
+            double r = std::sqrt(rx * rx + ry * ry + rz * rz);
+            if (r < r_cutoff_big)
+            {
+                pressure_i+= r*interaction_force(std::max(r_cutoff_small,r));
+            }
+        }
+    }
+    pressure_i/=3*a*a*a;
+
+    return pressure_i;
+}
+
+
+Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps)
+{
+    printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
+    printf("system parameter: T=%.1f K, V=(%.1f A)^3\n",sys.temperature*sys.temperature_conversion_constant,1e10*sys.a*sys.length_conversion_constant);
+    sys.calculate_pressure = false;
+
+    int percent = 0;
+    printf("Calculating pressure(viral):----------------------------------------\n");
+    printf("preparing: 0%%");
+    for (int i = 0; i < init_steps; i++)
+    {
+        sys.update();
+        if ((i + 1) * 100 / init_steps > percent)
+        {
+            percent = (i + 1) * 100 / init_steps;
+            printf("\rpreparing %d%%    ", percent);
+            fflush(stdout);
+        }
+    }
+    printf("\n");
+
+    double sum_pressure=0;
+    double sum_pressure2=0;
+
+
+    printf("simulating: 0%%");
+    percent = 0;
+    for (int i = 0; i < simulation_steps; i++)
+    {
+        sys.update();
+
+        double pressure_i=sys.pressure_viral();
+        sum_pressure+=pressure_i;
+        sum_pressure2+=pressure_i*pressure_i;
+
+        if ((i + 1) * 100 / simulation_steps > percent)
+        {
+            percent = (i + 1) * 100 / simulation_steps;
+            printf("\rsimulating %d%%   ", percent);
+            fflush(stdout);
+        }
+    }
+    printf("\n");
+
+    Particle result;
+    result.px = sum_pressure/simulation_steps;
+    result.py = sum_pressure2/simulation_steps-result.px*result.px;
+
+    std::cout << "Averaged pressure: " << result.px*sys.pressure_conversion_constant<<"Pa; "
+        << "std(P): " <<std::sqrt(result.py)*sys.pressure_conversion_constant <<"Pa; "<< std::endl;
+    std::cout << "(simulation steps: "<<simulation_steps<<")"<<std::endl;
+    printf("-------------------------------------------------------------\n\n");
+
+    return result;
+}
+
+
 /*
-Same parameter signature and meaning as above, print several transport properties. 
-Still, pressure is returned. 
+Same parameter signature and meaning as above, print several transport properties.
+Still, pressure is returned.
 */
 Particle calculate_transport_properties(MD_system &sys, int init_steps, int simulation_steps)
 {
