@@ -363,7 +363,7 @@ Particle MD_system::accumulate_heat_flux()
     // 1. calculate particle energy
     for (int i = 0; i < N; ++i)
     {
-        double e = .5 * (particles[i].px * particles[i].px + particles[i].py * particles[i].py + particles[i].pz * particles[i].pz) + full_potential[i];
+        double e = .5 * (particles[i].px * particles[i].px + particles[i].py * particles[i].py + particles[i].pz * particles[i].pz) + .5 * full_potential[i];
         ret.x += e * particles[i].px;
         ret.y += e * particles[i].py;
         ret.z += e * particles[i].pz;
@@ -413,7 +413,6 @@ void MD_system::calculate_velocity_auto_correlation(int max_time, const char *co
     }
     printf("\n");
     save_correl_stream.close();
-
     has_velocity_auto_correlation_calced = true;
     printf("----------------------------------------\n");
 }
@@ -442,9 +441,7 @@ double MD_system::calculate_self_diffusion_constant(bool use_coarse_estimate, in
     cut_off -= (cut_off & 1);
     double self_diffusion_constant = velocity_auto_correlation[0] + velocity_auto_correlation[cut_off - 1];
     for (int i = 1; i < cut_off - 1; ++i)
-    {
         self_diffusion_constant += (2 << (i & 1)) * velocity_auto_correlation[i];
-    }
 
     return self_diffusion_constant * rescaled_dt / 3. * velocity_conversion_constant * velocity_conversion_constant; // convert velocity into SI units!
 }
@@ -499,6 +496,7 @@ void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const cha
     }
     printf("\n");
     save_correl_stream.close();
+    has_stress_tensor_auto_correlation_calced = true;
     printf("----------------------------------------\n");
 }
 
@@ -582,6 +580,7 @@ void MD_system::calculate_heat_flux_auto_correlation(int max_time, const char *c
     }
     printf("\n");
     save_correl_stream.close();
+    has_heat_flux_auto_correlation_calced = true;
     printf("----------------------------------------\n");
 }
 
@@ -608,9 +607,7 @@ double MD_system::calculate_thermal_conductivity(bool use_coarse_estimate, int c
     cut_off -= (cut_off & 1);
     double thermal_conductivity = heat_flux_auto_correlation[0] + heat_flux_auto_correlation[cut_off - 1];
     for (int i = 1; i < cut_off - 1; ++i)
-    {
         thermal_conductivity += (2 << (i & 1)) * heat_flux_auto_correlation[i];
-    }
 
     return thermal_conductivity * rescaled_dt / 3. / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant )); // convert viscosity into SI units!
 }
