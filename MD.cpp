@@ -282,6 +282,45 @@ void MD_system::clear_pressure()
     accumulate_momentum_crossed.pz = 0;
 }
 
+
+void MD_system::append_current_state()
+{
+    stress_tensor_traj.push_back(accumulate_stress_tensor());
+    heat_flux_traj.push_back(accumulate_heat_flux());
+    trajectory.push_back(particles);
+}
+
+
+Particle MD_system::accumulate_stress_tensor()
+{
+    // The three components represents: sigma_{xy}, sigma_{yz}, and sigma_{zx}, respectively
+    Particle ret;
+    ret.x = ret.y = ret.z = 0.;
+    for (int i = 0; i < N; ++i)
+    {
+        ret.x += (particles[i].px * particles[i].py + .5 * (particles[i].x * force[i].fy + particles[i].y * force[i].fx));
+        ret.y += (particles[i].py * particles[i].pz + .5 * (particles[i].y * force[i].fz + particles[i].z * force[i].fy));
+        ret.z += (particles[i].pz * particles[i].px + .5 * (particles[i].z * force[i].fx + particles[i].x * force[i].fz));
+    }
+    
+    return ret;
+}
+
+Particle MD_system::accumulate_heat_flux()
+{
+    // The three components represents: sigma_{xy}, sigma_{yz}, and sigma_{zx}, respectively
+    Particle ret;
+    ret.x = ret.y = ret.z = 0.;
+    for (int i = 0; i < N; ++i)
+    {
+        ret.x += (particles[i].px * particles[i].py + .5 * (particles[i].x * force[i].fy + particles[i].y * force[i].fx));
+        ret.y += (particles[i].py * particles[i].pz + .5 * (particles[i].y * force[i].fz + particles[i].z * force[i].fy));
+        ret.z += (particles[i].pz * particles[i].px + .5 * (particles[i].z * force[i].fx + particles[i].x * force[i].fz));
+    }
+    
+    return ret;
+}
+
 void MD_system::calculate_velocity_auto_correlation(int max_time, const char *const file_name)
 {
     printf("Calculating velocity auto-correlation:--------------------\n");
@@ -316,7 +355,39 @@ void MD_system::calculate_velocity_auto_correlation(int max_time, const char *co
     has_velocity_auto_correlation_calced = true;
     printf("----------------------------------------\n");
 }
-#include "helper_funcs.h"
+
+double MD_system::calculate_self_diffusion_constant(bool use_coarse_estimate, int cut_off)
+{
+    // Integrate auto-correlation over tau
+    if (!has_velocity_auto_correlation_calced)
+        calculate_velocity_auto_correlation();
+
+    double rescaled_dt = dt * every_save * time_conversion_constant; // Difference between tau's
+    if (use_coarse_estimate)
+    { // use exponential decay to estimate
+        printf("Using coarse estimate...\n");
+        return velocity_auto_correlation[0] / (log(velocity_auto_correlation[0]) - log(velocity_auto_correlation[1])) * rescaled_dt * velocity_conversion_constant * velocity_conversion_constant;
+    }
+
+    if (cut_off > velocity_auto_correlation.size())
+    { // too large, give a comparison
+        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", velocity_auto_correlation[0] / (log(velocity_auto_correlation[0]) - log(velocity_auto_correlation[1])) * rescaled_dt * velocity_conversion_constant * velocity_conversion_constant);
+        cut_off = velocity_auto_correlation.size();
+    }
+
+    printf("Using Simpson rule...\n");
+    // In order to use Simpson rule, total tau's must be an odd number
+    cut_off -= (cut_off & 1);
+    double self_diffusion_constant = velocity_auto_correlation[0] + velocity_auto_correlation[cut_off - 1];
+    for (int i = 1; i < cut_off - 1; ++i)
+    {
+        self_diffusion_constant += (2 << (i & 1)) * velocity_auto_correlation[i];
+    }
+
+    return self_diffusion_constant * rescaled_dt / 3. * velocity_conversion_constant * velocity_conversion_constant; // convert velocity into SI units!
+}
+
+
 void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const char *const file_name)
 {
     printf("Calculating stress-tensor auto-correlation:-------------\n");
@@ -369,36 +440,6 @@ void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const cha
     printf("----------------------------------------\n");
 }
 
-double MD_system::calculate_self_diffusion_constant(bool use_coarse_estimate, int cut_off)
-{
-    // Integrate auto-correlation over tau
-    if (!has_velocity_auto_correlation_calced)
-        calculate_velocity_auto_correlation();
-
-    double rescaled_dt = dt * every_save * time_conversion_constant; // Difference between tau's
-    if (use_coarse_estimate)
-    { // use exponential decay to estimate
-        printf("Using coarse estimate...\n");
-        return velocity_auto_correlation[0] / (log(velocity_auto_correlation[0]) - log(velocity_auto_correlation[1])) * rescaled_dt * velocity_conversion_constant * velocity_conversion_constant;
-    }
-
-    if (cut_off > velocity_auto_correlation.size())
-    { // too large, give a comparison
-        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", velocity_auto_correlation[0] / (log(velocity_auto_correlation[0]) - log(velocity_auto_correlation[1])) * rescaled_dt * velocity_conversion_constant * velocity_conversion_constant);
-        cut_off = velocity_auto_correlation.size();
-    }
-
-    printf("Using Simpson rule...\n");
-    // In order to use Simpson rule, total tau's must be an odd number
-    cut_off -= (cut_off & 1);
-    double self_diffusion_constant = velocity_auto_correlation[0] + velocity_auto_correlation[cut_off - 1];
-    for (int i = 1; i < cut_off - 1; ++i)
-    {
-        self_diffusion_constant += (2 << (i & 1)) * velocity_auto_correlation[i];
-    }
-
-    return self_diffusion_constant * rescaled_dt / 3. * velocity_conversion_constant * velocity_conversion_constant; // convert velocity into SI units!
-}
 
 double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate, int cut_off)
 {
@@ -430,26 +471,89 @@ double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate
 
     return shear_viscosity_coefficient * rescaled_dt / 3. / pow(a, 3) / temperature * pressure_conversion_constant; // convert viscosity into SI units!
 }
-#include "helper_funcs.h"
-Particle MD_system::accumulate_stress_tensor()
+
+void MD_system::calculate_heat_flux_auto_correlation(int max_time, const char *const file_name)
 {
-    // The three components represents: sigma_{xy}, sigma_{yz}, and sigma_{zx}, respectively
-    Particle ret;
-    ret.x = ret.y = ret.z = 0.;
-    for (int i = 0; i < N; ++i)
+    printf("Calculating heat-flow auto-correlation:-------------\n");
+    // Calculate auto-correlation at several time difference tau
+    std::ofstream save_correl_stream(file_name);
+    heat_flux_auto_correlation.reserve(max_time);
+
+    int percent = 0;
+
+    auto bufx = 0., bufy = 0., bufz = 0.;
+    for (auto &x : heat_flux_traj)
     {
-        ret.x += (particles[i].px * particles[i].py + .5 * (particles[i].x * force[i].fy + particles[i].y * force[i].fx));
-        ret.y += (particles[i].py * particles[i].pz + .5 * (particles[i].y * force[i].fz + particles[i].z * force[i].fy));
-        ret.z += (particles[i].pz * particles[i].px + .5 * (particles[i].z * force[i].fx + particles[i].x * force[i].fz));
+        bufx += x.x;
+        bufy += x.y;
+        bufz += x.z;
     }
-    
-    return ret;
+    bufx /= heat_flux_traj.size();
+    bufy /= heat_flux_traj.size();
+    bufz /= heat_flux_traj.size();
+    for (auto &x : heat_flux_traj)
+    {
+        x.x -= bufx;
+        x.y -= bufy; 
+        x.z -= bufz;
+    }
+
+    printf("Processing: 0%%");
+
+    for (int tau = 1; tau < max_time; ++tau)
+    { // Iterate over different time difference
+        if ((tau + 1) * 100 / max_time > percent)
+        {
+            percent = (tau + 1) * 100 / max_time;
+            printf("\rProcessing: %d%%    ", percent);
+            fflush(stdout);
+        }
+        heat_flux_auto_correlation.push_back(0.); // clear
+        for (int t = 0; t < heat_flux_traj.size() - tau; ++t)
+        { // Iterate over time
+            for (int j = 0; j < N; ++j)
+            { // Iterate over particles
+                heat_flux_auto_correlation[tau] += (heat_flux_traj[t].x * heat_flux_traj[t + tau].x + heat_flux_traj[t].y * heat_flux_traj[t + tau].y + heat_flux_traj[t].z * heat_flux_traj[t + tau].z);
+            }
+        }
+        heat_flux_auto_correlation[tau] /= (3. * (heat_flux_traj.size() - tau));
+        save_correl_stream << std::setprecision(17) << heat_flux_auto_correlation[tau] << '\n';
+    }
+    printf("\n");
+    save_correl_stream.close();
+    printf("----------------------------------------\n");
 }
 
-void MD_system::append_current_state()
+
+double MD_system::calculate_thermal_conductivity(bool use_coarse_estimate, int cut_off)
 {
-    stress_tensor_traj.push_back(accumulate_stress_tensor());
-    trajectory.push_back(particles);
+    // Integrate auto-correlation over tau
+    if (!has_heat_flux_auto_correlation_calced)
+        calculate_heat_flux_auto_correlation();
+
+    double rescaled_dt = dt * every_save * time_conversion_constant; // Difference between tau's
+    if (use_coarse_estimate)
+    { // use exponential decay to estimate
+        printf("Using coarse estimate...\n");
+        return heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant;
+    }
+
+    if (cut_off > heat_flux_auto_correlation.size())
+    { // too large, give a comparison
+        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant);
+        cut_off = heat_flux_auto_correlation.size();
+    }
+
+    printf("Using Simpson rule...\n");
+    // In order to use Simpson rule, total tau's must be an odd number
+    cut_off -= (cut_off & 1);
+    double shear_viscosity_coefficient = heat_flux_auto_correlation[0] + heat_flux_auto_correlation[cut_off - 1];
+    for (int i = 1; i < cut_off - 1; ++i)
+    {
+        shear_viscosity_coefficient += (2 << (i & 1)) * heat_flux_auto_correlation[i];
+    }
+
+    return shear_viscosity_coefficient * rescaled_dt / 3. / pow(a, 3) / temperature * pressure_conversion_constant; // convert viscosity into SI units!
 }
 
 double MD_system::get_temperature()

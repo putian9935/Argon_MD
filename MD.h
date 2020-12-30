@@ -85,10 +85,10 @@ public:
     double calculate_shear_viscosity_coefficient(bool = true, int = -1);
 
     // Thermal conductivity 
-    std::vector<Particle> heat_flow_traj;
-    std::vector<double> heat_flow_auto_correlation;
-    bool has_heat_flow_auto_correlation_calced;
-    void calculate_heat_flow_auto_correlation(int = 500, const char *const = "heat_flow_correlation.dat");
+    std::vector<Particle> heat_flux_traj;
+    std::vector<double> heat_flux_auto_correlation;
+    bool has_heat_flux_auto_correlation_calced;
+    void calculate_heat_flux_auto_correlation(int = 500, const char *const = "heat_flux_correlation.dat");
     double calculate_thermal_conductivity(bool = true, int = -1);
 
     // Some conversion constants
@@ -116,7 +116,7 @@ private:
     double interaction_force(double dist);
     double interaction_potential(double dist);
 
-    Particle accumulate_heat_flux(std::vector<Particle> &);
+    Particle accumulate_heat_flux();
     Particle accumulate_stress_tensor();
 };
 
