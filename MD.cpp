@@ -1,5 +1,5 @@
 #include "MD.h"
-
+#include "helper_funcs.h"
 // hello world!
 // is my username correct
 //cyc join in
@@ -282,43 +282,28 @@ void MD_system::clear_pressure()
     accumulate_momentum_crossed.pz = 0;
 }
 
-#include "helper_funcs.h"
 void MD_system::append_current_state()
 {
-    printf("hello\n");
-    accumulate_full_force_and_potential();
-    printf("hello\n");
-    input();
+    accumulate_full_pair_force_and_potential();
     stress_tensor_traj.push_back(accumulate_stress_tensor());
     heat_flux_traj.push_back(accumulate_heat_flux());
     trajectory.push_back(particles);
 }
 
-
-Particle MD_system::accumulate_stress_tensor()
-{
-    // The three components represents: sigma_{xy}, sigma_{yz}, and sigma_{zx}, respectively
-    Particle ret;
-    ret.x = ret.y = ret.z = 0.;
-    for (int i = 0; i < N; ++i)
-    {
-        ret.x += (particles[i].px * particles[i].py + .5 * (particles[i].x * full_force[i].fy + particles[i].y * full_force[i].fx));
-        ret.y += (particles[i].py * particles[i].pz + .5 * (particles[i].y * full_force[i].fz + particles[i].z * full_force[i].fy));
-        ret.z += (particles[i].pz * particles[i].px + .5 * (particles[i].z * full_force[i].fx + particles[i].x * full_force[i].fz));
-    }
-    
-    return ret;
-}
-
-void MD_system::accumulate_full_force_and_potential()
+void MD_system::accumulate_full_pair_force_and_potential()
 {
     // accumulate the force and potential of each particle without any cutoff
     // expensive function, yet called less frequently
-    for(int i = 0; i< N; ++i)
+    full_pair_force.reserve(N);
+    full_potential.reserve(N);
+    for (int i = 0; i < N; ++i)
     {
-        full_force[i].fx = full_force[i].fy = full_force[i].fz = 0.; 
+        full_pair_force[i].reserve(N);
         full_potential[i] = 0.;
+        for (int j = 0; j < N; ++j)
+            full_pair_force[i][j].fx = full_pair_force[i][j].fy = full_pair_force[i][j].fz = 0.;
     }
+
     for (int i = 0; i < N; ++i)
     {
         for (int j = i + 1; j < N; ++j)
@@ -329,19 +314,42 @@ void MD_system::accumulate_full_force_and_potential()
 
             double r = std::sqrt(rx * rx + ry * ry + rz * rz);
             double F = interaction_force(r);
-            full_force[j].fx += F * rx / r;
-            full_force[j].fy += F * ry / r;
-            full_force[j].fz += F * rz / r;
+            full_pair_force[j][i].fx = F * rx / r;
+            full_pair_force[j][i].fy = F * ry / r;
+            full_pair_force[j][i].fz = F * rz / r;
 
-            full_force[i].fx -= F * rx / r;
-            full_force[i].fy -= F * ry / r;
-            full_force[i].fz -= F * rz / r;
+            full_pair_force[i][j].fx = -full_pair_force[j][i].fx;
+            full_pair_force[i][j].fy = -full_pair_force[j][i].fy;
+            full_pair_force[i][j].fz = -full_pair_force[j][i].fz;
 
             full_potential[i] += interaction_potential(r);
-            full_potential[j] += interaction_potential(r); 
+            full_potential[j] += interaction_potential(r);
         }
     }
-    
+}
+
+
+Particle MD_system::accumulate_stress_tensor()
+{
+    // The three components represents: sigma_{xy}, sigma_{yz}, and sigma_{zx}, respectively
+    Particle ret;
+    ret.x = ret.y = ret.z = 0.;
+    for (int i = 0; i < N; ++i)
+    {
+        ret.x += (particles[i].px * particles[i].py);
+        ret.y += (particles[i].py * particles[i].pz);
+        ret.z += (particles[i].pz * particles[i].px);
+    }
+
+    for (int i = 0; i < N; ++i)
+        for (int j = 0; j < N ;++j)
+        {
+            // if (j == i) continue;
+            ret.x += .5 * (particles[i].x - particles[j].x) * full_pair_force[i][j].fy;
+            ret.y += .5 * (particles[i].y - particles[j].y) * full_pair_force[i][j].fz;
+            ret.z += .5 * (particles[i].z - particles[j].z) * full_pair_force[i][j].fx;
+        }
+    return ret;
 }
 
 
@@ -356,25 +364,28 @@ Particle MD_system::accumulate_heat_flux()
     for (int i = 0; i < N; ++i)
     {
         double e = .5 * (particles[i].px * particles[i].px + particles[i].py * particles[i].py + particles[i].pz * particles[i].pz) + full_potential[i];
-        ret.x += e * particles[i].px; 
+        ret.x += e * particles[i].px;
         ret.y += e * particles[i].py;
-        ret.z += e * particles[i].pz; 
+        ret.z += e * particles[i].pz;
     }
 
-    // 2. calculate work done by force 
-    for (int i =0; i<N; ++i)
+    // 2. calculate work done by force
+    for (int i = 0; i < N; ++i)
     {
-        double buf = full_force[i].fx * particles[i].px + full_force[i].fy * particles[i].py + full_force[i].fz * particles[i].pz;
-        ret.x += buf * particles[i].x; 
-        ret.y += buf * particles[i].y; 
-        ret.z += buf * particles[i].z; 
+        for (int j = 0; j < N; ++j)
+        {
+        double buf = (full_pair_force[i][j].fx * particles[i].px + full_pair_force[i][j].fy * particles[i].py + full_pair_force[i][j].fz * particles[i].pz) / 2.;
+        ret.x += buf * (particles[i].x - particles[j].x);
+        ret.y += buf * (particles[i].y - particles[j].y);
+        ret.z += buf * (particles[i].z - particles[j].z);
+        }
     }
     return ret;
 }
 
 void MD_system::calculate_velocity_auto_correlation(int max_time, const char *const file_name)
 {
-    printf("Calculating velocity auto-correlation:--------------------\n");
+    printf("----------------------------------------\nCalculating velocity auto-correlation:\n");
     // Calculate auto-correlation at several time difference tau
     std::ofstream save_correl_stream(file_name);
     velocity_auto_correlation.reserve(max_time);
@@ -438,15 +449,13 @@ double MD_system::calculate_self_diffusion_constant(bool use_coarse_estimate, in
     return self_diffusion_constant * rescaled_dt / 3. * velocity_conversion_constant * velocity_conversion_constant; // convert velocity into SI units!
 }
 
-
 void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const char *const file_name)
 {
-    printf("Calculating stress-tensor auto-correlation:-------------\n");
+    printf("----------------------------------------\nCalculating stress-tensor auto-correlation:\n");
     // Calculate auto-correlation at several time difference tau
     std::ofstream save_correl_stream(file_name);
 
     stress_tensor_auto_correlation.reserve(max_time);
-
 
     int percent = 0;
 
@@ -469,7 +478,7 @@ void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const cha
 
     printf("Processing: 0%%");
 
-    for (int tau = 1; tau < max_time; ++tau)
+    for (int tau = 0; tau < max_time; ++tau)
     { // Iterate over different time difference
         if ((tau + 1) * 100 / max_time > percent)
         {
@@ -492,7 +501,6 @@ void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const cha
     save_correl_stream.close();
     printf("----------------------------------------\n");
 }
-
 
 double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate, int cut_off)
 {
@@ -527,7 +535,7 @@ double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate
 
 void MD_system::calculate_heat_flux_auto_correlation(int max_time, const char *const file_name)
 {
-    printf("Calculating heat-flow auto-correlation:-------------\n");
+    printf("----------------------------------------\nCalculating heat-flux auto-correlation:\n");
     // Calculate auto-correlation at several time difference tau
     std::ofstream save_correl_stream(file_name);
     heat_flux_auto_correlation.reserve(max_time);
@@ -547,13 +555,13 @@ void MD_system::calculate_heat_flux_auto_correlation(int max_time, const char *c
     for (auto &x : heat_flux_traj)
     {
         x.x -= bufx;
-        x.y -= bufy; 
+        x.y -= bufy;
         x.z -= bufz;
     }
 
     printf("Processing: 0%%");
 
-    for (int tau = 1; tau < max_time; ++tau)
+    for (int tau = 0; tau < max_time; ++tau)
     { // Iterate over different time difference
         if ((tau + 1) * 100 / max_time > percent)
         {
@@ -577,7 +585,6 @@ void MD_system::calculate_heat_flux_auto_correlation(int max_time, const char *c
     printf("----------------------------------------\n");
 }
 
-
 double MD_system::calculate_thermal_conductivity(bool use_coarse_estimate, int cut_off)
 {
     // Integrate auto-correlation over tau
@@ -588,12 +595,12 @@ double MD_system::calculate_thermal_conductivity(bool use_coarse_estimate, int c
     if (use_coarse_estimate)
     { // use exponential decay to estimate
         printf("Using coarse estimate...\n");
-        return heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt/ pow(a, 3) / temperature / temperature * (pressure_conversion_constant / (temperature_conversion_constant * time_conversion_constant * length_conversion_constant * length_conversion_constant));
+        return heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant ) * length_conversion_constant);
     }
 
     if (cut_off > heat_flux_auto_correlation.size())
     { // too large, give a comparison
-        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature / temperature * (pressure_conversion_constant / (temperature_conversion_constant * time_conversion_constant * length_conversion_constant * length_conversion_constant)));
+        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant ) * length_conversion_constant));
     }
 
     printf("Using Simpson rule...\n");
@@ -605,7 +612,7 @@ double MD_system::calculate_thermal_conductivity(bool use_coarse_estimate, int c
         thermal_conductivity += (2 << (i & 1)) * heat_flux_auto_correlation[i];
     }
 
-    return thermal_conductivity * rescaled_dt / 3. / pow(a, 3) / temperature / temperature * (pressure_conversion_constant / (temperature_conversion_constant * time_conversion_constant * length_conversion_constant * length_conversion_constant)); // convert viscosity into SI units!
+    return thermal_conductivity * rescaled_dt / 3. / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant ) * length_conversion_constant); // convert viscosity into SI units!
 }
 
 double MD_system::get_temperature()
@@ -683,13 +690,12 @@ Particle get_pressure_collision(MD_system &sys, int init_steps, int simulation_s
 
 double MD_system::pressure_viral()
 {
-    double pressure_i=0;
-    for(int j=0;j<N;j++)
+    double pressure_i = 0;
+    for (int j = 0; j < N; j++)
     {
-        pressure_i+=particles[j].px*particles[j].px+particles[j].py*particles[j].py
-            +particles[j].pz*particles[j].pz;
+        pressure_i += particles[j].px * particles[j].px + particles[j].py * particles[j].py + particles[j].pz * particles[j].pz;
 
-        for(int k=0;k<j;k++)
+        for (int k = 0; k < j; k++)
         {
             double rx = nearest_dist(particles[j].x - particles[k].x);
             double ry = nearest_dist(particles[j].y - particles[k].y);
@@ -698,20 +704,19 @@ double MD_system::pressure_viral()
             double r = std::sqrt(rx * rx + ry * ry + rz * rz);
             if (r < r_cutoff_big)
             {
-                pressure_i+= r*interaction_force(std::max(r_cutoff_small,r));
+                pressure_i += r * interaction_force(std::max(r_cutoff_small, r));
             }
         }
     }
-    pressure_i/=3*a*a*a;
+    pressure_i /= 3 * a * a * a;
 
     return pressure_i;
 }
 
-
 Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps)
 {
     printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
-    printf("system parameter: T=%.1f K, V=(%.1f A)^3\n",sys.temperature*sys.temperature_conversion_constant,1e10*sys.a*sys.length_conversion_constant);
+    printf("system parameter: T=%.1f K, V=(%.1f A)^3\n", sys.temperature * sys.temperature_conversion_constant, 1e10 * sys.a * sys.length_conversion_constant);
     sys.calculate_pressure = false;
 
     int percent = 0;
@@ -729,9 +734,8 @@ Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps
     }
     printf("\n");
 
-    double sum_pressure=0;
-    double sum_pressure2=0;
-
+    double sum_pressure = 0;
+    double sum_pressure2 = 0;
 
     printf("simulating: 0%%");
     percent = 0;
@@ -739,9 +743,9 @@ Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps
     {
         sys.update();
 
-        double pressure_i=sys.pressure_viral();
-        sum_pressure+=pressure_i;
-        sum_pressure2+=pressure_i*pressure_i;
+        double pressure_i = sys.pressure_viral();
+        sum_pressure += pressure_i;
+        sum_pressure2 += pressure_i * pressure_i;
 
         if ((i + 1) * 100 / simulation_steps > percent)
         {
@@ -753,12 +757,12 @@ Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps
     printf("\n");
 
     Particle result;
-    result.px = sum_pressure/simulation_steps;
-    result.py = sum_pressure2/simulation_steps-result.px*result.px;
+    result.px = sum_pressure / simulation_steps;
+    result.py = sum_pressure2 / simulation_steps - result.px * result.px;
 
-    std::cout << "Averaged pressure: " << result.px*sys.pressure_conversion_constant<<"Pa; "
-        << "std(P): " <<std::sqrt(result.py)*sys.pressure_conversion_constant <<"Pa; "<< std::endl;
-    std::cout << "(simulation steps: "<<simulation_steps<<")"<<std::endl;
+    std::cout << "Averaged pressure: " << result.px * sys.pressure_conversion_constant << "Pa; "
+              << "std(P): " << std::sqrt(result.py) * sys.pressure_conversion_constant << "Pa; " << std::endl;
+    std::cout << "(simulation steps: " << simulation_steps << ")" << std::endl;
     printf("-------------------------------------------------------------\n\n");
 
     return result;

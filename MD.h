@@ -42,7 +42,7 @@ public:
     //parameters for solution
     double dt;
 
-    double r_cutoff_big = 5.0; //cut off when calculating forces among particles
+    double r_cutoff_big = 5.0;   //cut off when calculating forces among particles
     double r_cutoff_small = 0.9; //cut off when calculating forces among particles
 
     void initialize_system();
@@ -53,7 +53,7 @@ public:
     ~MD_system();
 
     // temperature
-    double get_temperature() ;
+    double get_temperature();
     bool shift_momentum;
 
     // radial distribution
@@ -67,28 +67,27 @@ public:
     int test_counter = 0;
     double pressure_viral();
 
-
     void append_current_state();
 
     // Auto-correlation, diffusion, etc.
-    std::vector<std::vector<Particle> > trajectory;
+    std::vector<std::vector<Particle>> trajectory;
     std::vector<double> velocity_auto_correlation;
     int every_save;
     bool has_velocity_auto_correlation_calced;
     void calculate_velocity_auto_correlation(int = 500, const char *const = "correlation.dat");
     double calculate_self_diffusion_constant(bool = true, int = -1);
 
-    // Viscosity 
-    std::vector<Force> full_force;
-    std::vector<double> full_potential; 
-    void accumulate_full_force_and_potential();
+    // Viscosity
+    std::vector<std::vector<Force>> full_pair_force; // fpf[i][j] from j to i
+    std::vector<double> full_potential;
+    void accumulate_full_pair_force_and_potential();
     std::vector<Particle> stress_tensor_traj;
     std::vector<double> stress_tensor_auto_correlation;
     bool has_stress_tensor_auto_correlation_calced;
     void calculate_stress_tensor_auto_correlation(int = 500, const char *const = "viscosity_correlation.dat");
     double calculate_shear_viscosity_coefficient(bool = true, int = -1);
 
-    // Thermal conductivity 
+    // Thermal conductivity
     std::vector<Particle> heat_flux_traj;
     std::vector<double> heat_flux_auto_correlation;
     bool has_heat_flux_auto_correlation_calced;
@@ -125,8 +124,8 @@ private:
 };
 
 Particle get_pressure_collision(MD_system &sys, int init_steps, int simulation_steps);
-Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps);//px=P,py=var(P)
+Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps); //px=P,py=var(P)
 
-Particle calculate_transport_properties(MD_system&, int, int);
+Particle calculate_transport_properties(MD_system &, int, int);
 
 #endif // MD_H_INCLUDED
