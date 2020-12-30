@@ -4,6 +4,7 @@
 // is my username correct
 //cyc join in
 
+
 MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save, bool shift_momentum)
     : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save),
       shift_momentum(shift_momentum), stream_opened(false), calculate_pressure(false),
@@ -374,10 +375,10 @@ Particle MD_system::accumulate_heat_flux()
     {
         for (int j = 0; j < N; ++j)
         {
-        double buf = (full_pair_force[i][j].fx * particles[i].px + full_pair_force[i][j].fy * particles[i].py + full_pair_force[i][j].fz * particles[i].pz) / 2.;
-        ret.x += buf * (particles[i].x - particles[j].x);
-        ret.y += buf * (particles[i].y - particles[j].y);
-        ret.z += buf * (particles[i].z - particles[j].z);
+            double buf = (full_pair_force[i][j].fx * particles[i].px + full_pair_force[i][j].fy * particles[i].py + full_pair_force[i][j].fz * particles[i].pz) / 2.;
+            ret.x += buf * (particles[i].x - particles[j].x);
+            ret.y += buf * (particles[i].y - particles[j].y);
+            ret.z += buf * (particles[i].z - particles[j].z);
         }
     }
     return ret;
@@ -710,7 +711,7 @@ double MD_system::pressure_viral()
     return pressure_i;
 }
 
-Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps)
+Particle get_pressure_virial(MD_system &sys, int init_steps, int simulation_steps)
 {
     printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
     printf("system parameter: T=%.1f K, V=(%.1f A)^3\n", sys.temperature * sys.temperature_conversion_constant, 1e10 * sys.a * sys.length_conversion_constant);

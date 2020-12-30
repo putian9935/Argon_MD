@@ -124,7 +124,7 @@ private:
 };
 
 Particle get_pressure_collision(MD_system &sys, int init_steps, int simulation_steps);
-Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps); //px=P,py=var(P)
+Particle get_pressure_virial(MD_system &sys, int init_steps, int simulation_steps); //px=P,py=var(P)
 
 Particle calculate_transport_properties(MD_system &, int, int);
 
