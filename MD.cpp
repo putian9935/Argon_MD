@@ -12,7 +12,7 @@ MD_system::MD_system(int N, double temperature, double a, int N_hoover, double d
     particles = std::vector<Particle>(N);
     daemons = std::vector<Particle>(N_hoover);
     force = std::vector<Force>(N + N_hoover);
-    trajectory = std::vector<std::vector<Particle> >(0);
+    trajectory = std::vector<std::vector<Particle>>(0);
     Q = std::vector<double>(N_hoover);
 
     // initialize coordinates & momentum
@@ -46,7 +46,7 @@ void MD_system::initialize_system()
     if (shift_momentum)
     {
         double average_px = 0., average_py = 0., average_pz = 0.;
-        for (const auto & particle : particles)
+        for (const auto &particle : particles)
         {
             average_px += particle.px;
             average_py += particle.py;
@@ -200,7 +200,8 @@ double MD_system::interaction_force(double dist)
     return (48 * sr6 * sr6 / dist - 24 * sr6 / dist);
 }
 
-double MD_system::interaction_potential(double dist) {
+double MD_system::interaction_potential(double dist)
+{
     // V(r)=4*epsilon*((sigma/r)^12-(sigma/r)^6)
     double sr6 = std::pow(1.0 / dist, 6);
     return 4 * sr6 * (sr6 - 1.0);
@@ -216,7 +217,7 @@ void MD_system::accumulate_pair_force(int i, int j)
 
     if (r < r_cutoff_big)
     {
-        double F = interaction_force(std::max(r_cutoff_small,r));
+        double F = interaction_force(std::max(r_cutoff_small, r));
         force[j].fx += F * rx / r;
         force[j].fy += F * ry / r;
         force[j].fz += F * rz / r;
@@ -315,17 +316,38 @@ void MD_system::calculate_velocity_auto_correlation(int max_time, const char *co
     has_velocity_auto_correlation_calced = true;
     printf("----------------------------------------\n");
 }
-
-void MD_system::calculate_viscosity_auto_correlation(int max_time, const char *const file_name)
+#include "helper_funcs.h"
+void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const char *const file_name)
 {
     printf("Calculating stress-tensor auto-correlation:-------------\n");
     // Calculate auto-correlation at several time difference tau
     std::ofstream save_correl_stream(file_name);
-    viscosity_auto_correlation.reserve(max_time);
+
+    stress_tensor_auto_correlation.reserve(max_time);
+
 
     int percent = 0;
+
+    auto bufx = 0., bufy = 0., bufz = 0.;
+    for (auto &x : stress_tensor_traj)
+    {
+        bufx += x.x;
+        bufy += x.y;
+        bufz += x.z;
+    }
+    bufx /= stress_tensor_traj.size();
+    bufy /= stress_tensor_traj.size();
+    bufz /= stress_tensor_traj.size();
+    for (auto &x : stress_tensor_traj)
+    {
+        x.x -= bufx;
+        x.y -= bufy;
+        x.z -= bufz;
+    }
+
     printf("Processing: 0%%");
-    for (int tau = 0; tau < max_time; ++tau)
+
+    for (int tau = 1; tau < max_time; ++tau)
     { // Iterate over different time difference
         if ((tau + 1) * 100 / max_time > percent)
         {
@@ -333,16 +355,16 @@ void MD_system::calculate_viscosity_auto_correlation(int max_time, const char *c
             printf("\rProcessing: %d%%    ", percent);
             fflush(stdout);
         }
-        viscosity_auto_correlation.push_back(0.); // clear
-        for (int t = 0; t < viscosity_traj.size() - tau; ++t)
+        stress_tensor_auto_correlation.push_back(0.); // clear
+        for (int t = 0; t < stress_tensor_traj.size() - tau; ++t)
         { // Iterate over time
             for (int j = 0; j < N; ++j)
             { // Iterate over particles
-               viscosity_auto_correlation[tau] += (viscosity_traj[t].x * viscosity_traj[t + tau].x + viscosity_traj[t].y * viscosity_traj[t + tau].y + viscosity_traj[t].z * viscosity_traj[t + tau].z);
+                stress_tensor_auto_correlation[tau] += (stress_tensor_traj[t].x * stress_tensor_traj[t + tau].x + stress_tensor_traj[t].y * stress_tensor_traj[t + tau].y + stress_tensor_traj[t].z * stress_tensor_traj[t + tau].z);
             }
         }
-        viscosity_auto_correlation[tau] /= (3. * (viscosity_traj.size() - tau));
-        save_correl_stream << std::setprecision(17) << viscosity_auto_correlation[tau] << '\n';
+        stress_tensor_auto_correlation[tau] /= (3. * (stress_tensor_traj.size() - tau));
+        save_correl_stream << std::setprecision(17) << stress_tensor_auto_correlation[tau] << '\n';
     }
     printf("\n");
     save_correl_stream.close();
@@ -383,57 +405,61 @@ double MD_system::calculate_self_diffusion_constant(bool use_coarse_estimate, in
 double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate, int cut_off)
 {
     // Integrate auto-correlation over tau
-    if (!has_viscosity_auto_correlation_calced)
-        calculate_viscosity_auto_correlation();
+
+    if (!has_stress_tensor_auto_correlation_calced)
+        calculate_stress_tensor_auto_correlation();
 
     double rescaled_dt = dt * every_save * time_conversion_constant; // Difference between tau's
     if (use_coarse_estimate)
     { // use exponential decay to estimate
         printf("Using coarse estimate...\n");
-        return viscosity_auto_correlation[0] / (log(viscosity_auto_correlation[0]) - log(viscosity_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant ;
+        return stress_tensor_auto_correlation[0] / (log(stress_tensor_auto_correlation[0]) - log(stress_tensor_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant;
     }
 
-    if (cut_off > viscosity_auto_correlation.size())
+    if (cut_off > stress_tensor_auto_correlation.size())
     { // too large, give a comparison
-        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", viscosity_auto_correlation[0] / (log(viscosity_auto_correlation[0]) - log(viscosity_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant );
-        cut_off = viscosity_auto_correlation.size();
+        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", stress_tensor_auto_correlation[0] / (log(stress_tensor_auto_correlation[0]) - log(stress_tensor_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant);
+        cut_off = stress_tensor_auto_correlation.size();
     }
 
     printf("Using Simpson rule...\n");
     // In order to use Simpson rule, total tau's must be an odd number
     cut_off -= (cut_off & 1);
-    double shear_viscosity_coefficient = viscosity_auto_correlation[0] + viscosity_auto_correlation[cut_off - 1];
+    double shear_viscosity_coefficient = stress_tensor_auto_correlation[0] + stress_tensor_auto_correlation[cut_off - 1];
     for (int i = 1; i < cut_off - 1; ++i)
     {
-        shear_viscosity_coefficient += (2 << (i & 1)) * viscosity_auto_correlation[i];
+        shear_viscosity_coefficient += (2 << (i & 1)) * stress_tensor_auto_correlation[i];
     }
 
-    return shear_viscosity_coefficient * rescaled_dt / 3. / pow(a, 3) / temperature * pressure_conversion_constant ; // convert viscosity into SI units!
+    return shear_viscosity_coefficient * rescaled_dt / 3. / pow(a, 3) / temperature * pressure_conversion_constant; // convert viscosity into SI units!
 }
-
+#include "helper_funcs.h"
 Particle MD_system::accumulate_stress_tensor()
 {
     // The three components represents: sigma_{xy}, sigma_{yz}, and sigma_{zx}, respectively
     Particle ret;
     ret.x = ret.y = ret.z = 0.;
-    for(int i=0; i<N;++i)
+    for (int i = 0; i < N; ++i)
     {
-        ret.x += particles[i].px * particles[i].py + particles[i].x * force[i].fy;
-        ret.y += particles[i].py * particles[i].pz + particles[i].y * force[i].fz;
-        ret.z += particles[i].pz * particles[i].px + particles[i].z * force[i].fx;
+        ret.x += (particles[i].px * particles[i].py + .5 * (particles[i].x * force[i].fy + particles[i].y * force[i].fx));
+        ret.y += (particles[i].py * particles[i].pz + .5 * (particles[i].y * force[i].fz + particles[i].z * force[i].fy));
+        ret.z += (particles[i].pz * particles[i].px + .5 * (particles[i].z * force[i].fx + particles[i].x * force[i].fz));
     }
+
     return ret;
 }
 
 void MD_system::append_current_state()
 {
-    viscosity_traj.push_back(accumulate_stress_tensor());
+    stress_tensor_traj.push_back(accumulate_stress_tensor());
     trajectory.push_back(particles);
 }
 
-double MD_system::get_temperature() {
+double MD_system::get_temperature()
+{
     double p_squared = 0.0;
-    for (Particle& par: particles) {
+    for (Particle &par : particles)
+    {
         p_squared += par.px * par.px + par.py * par.py + par.pz * par.pz;
     }
     return p_squared / (3 * m * N * k);
@@ -452,7 +478,7 @@ const double MD_system::length_conversion_constant = 3.4e-10;
 Particle get_pressure_collision(MD_system &sys, int init_steps, int simulation_steps)
 {
     printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
-    printf("system parameter: T=%.1f K, V=(%.1f A)^3\n",sys.temperature*sys.temperature_conversion_constant,1e10*sys.a*sys.length_conversion_constant);
+    printf("system parameter: T=%.1f K, V=(%.1f A)^3\n", sys.temperature * sys.temperature_conversion_constant, 1e10 * sys.a * sys.length_conversion_constant);
     sys.calculate_pressure = false;
 
     int percent = 0;
@@ -495,13 +521,12 @@ Particle get_pressure_collision(MD_system &sys, int init_steps, int simulation_s
     sys.calculate_pressure = false;
 
     std::cout << "The pressure of the system is: " << pressure.px << ";" << pressure.py << ";" << pressure.pz << std::endl;
-    std::cout << "Averaged pressure: " << (pressure.px + pressure.py + pressure.pz)/3*sys.pressure_conversion_constant<<"Pa" << std::endl;
+    std::cout << "Averaged pressure: " << (pressure.px + pressure.py + pressure.pz) / 3 * sys.pressure_conversion_constant << "Pa" << std::endl;
     std::cout << "(crossed " << sys.test_counter << " times in total)" << std::endl;
     printf("-------------------------------------------------------------\n\n");
 
     return pressure;
 }
-
 
 double MD_system::pressure_viral()
 {
@@ -586,7 +611,6 @@ Particle get_pressure_viral(MD_system &sys, int init_steps, int simulation_steps
     return result;
 }
 
-
 /*
 Same parameter signature and meaning as above, print several transport properties.
 Still, pressure is returned.
@@ -594,7 +618,7 @@ Still, pressure is returned.
 Particle calculate_transport_properties(MD_system &sys, int init_steps, int simulation_steps)
 {
     printf("The simulation runs for %.1f ps in total, with %.1f ps burn-in\n", ((init_steps + simulation_steps) * sys.dt * MD_system::time_conversion_constant) / 1e-12, (init_steps * sys.dt * MD_system::time_conversion_constant) / 1e-12);
-    printf("System parameters: T=%.1f K, V=(%.1f A)^3\n",sys.temperature*sys.temperature_conversion_constant,1e10*sys.a*sys.length_conversion_constant);
+    printf("System parameters: T=%.1f K, V=(%.1f A)^3\n", sys.temperature * sys.temperature_conversion_constant, 1e10 * sys.a * sys.length_conversion_constant);
     sys.calculate_pressure = false;
 
     int percent = 0;
@@ -639,7 +663,7 @@ Particle calculate_transport_properties(MD_system &sys, int init_steps, int simu
     sys.calculate_pressure = false;
 
     std::cout << "The pressure of the system is: " << pressure.px << ";" << pressure.py << ";" << pressure.pz << std::endl;
-    std::cout << "Averaged pressure: " << (pressure.px + pressure.py + pressure.pz)/3*sys.pressure_conversion_constant<<"Pa" << std::endl;
+    std::cout << "Averaged pressure: " << (pressure.px + pressure.py + pressure.pz) / 3 * sys.pressure_conversion_constant << "Pa" << std::endl;
     std::cout << "(crossed " << sys.test_counter << " times in total)" << std::endl;
     printf("-------------------------------------------------------------\n\n");
 

@@ -79,11 +79,18 @@ public:
     double calculate_self_diffusion_constant(bool = true, int = -1);
 
     // Viscosity
-    std::vector<Particle> viscosity_traj;
-    std::vector<double> viscosity_auto_correlation;
-    bool has_viscosity_auto_correlation_calced;
-    void calculate_viscosity_auto_correlation(int = 500, const char *const = "viscosity_correlation.dat");
+    std::vector<Particle> stress_tensor_traj;
+    std::vector<double> stress_tensor_auto_correlation;
+    bool has_stress_tensor_auto_correlation_calced;
+    void calculate_stress_tensor_auto_correlation(int = 500, const char *const = "viscosity_correlation.dat");
     double calculate_shear_viscosity_coefficient(bool = true, int = -1);
+
+    // Thermal conductivity
+    std::vector<Particle> heat_flow_traj;
+    std::vector<double> heat_flow_auto_correlation;
+    bool has_heat_flow_auto_correlation_calced;
+    void calculate_heat_flow_auto_correlation(int = 500, const char *const = "heat_flow_correlation.dat");
+    double calculate_thermal_conductivity(bool = true, int = -1);
 
     // Some conversion constants
     static const double pressure_conversion_constant, time_conversion_constant, velocity_conversion_constant,
