@@ -386,20 +386,20 @@ Particle MD_system::accumulate_heat_flux()
 
 void MD_system::calculate_velocity_auto_correlation(int max_time, const char *const file_name)
 {
-    printf("----------------------------------------\nCalculating velocity auto-correlation:\n");
+    fprintf(stderr, "----------------------------------------\nCalculating velocity auto-correlation:\n");
     // Calculate auto-correlation at several time difference tau
     std::ofstream save_correl_stream(file_name);
     velocity_auto_correlation.reserve(max_time);
 
     int percent = 0;
-    printf("Processing: 0%%");
+    fprintf(stderr, "Processing: 0%%");
     for (int tau = 0; tau < max_time; ++tau)
     { // Iterate over different time difference
         if ((tau + 1) * 100 / max_time > percent)
         {
             percent = (tau + 1) * 100 / max_time;
-            printf("\rProcessing: %d%%    ", percent);
-            fflush(stdout);
+            fprintf(stderr, "\rProcessing: %d%%    ", percent);
+            fflush(stderr);
         }
         velocity_auto_correlation.push_back(0.); // clear
         for (int t = 0; t < trajectory.size() - tau; ++t)
@@ -412,10 +412,10 @@ void MD_system::calculate_velocity_auto_correlation(int max_time, const char *co
         velocity_auto_correlation[tau] /= (3. * N * (trajectory.size() - tau));
         save_correl_stream << std::setprecision(17) << velocity_auto_correlation[tau] << '\n';
     }
-    printf("\n");
+    fprintf(stderr, "\n");
     save_correl_stream.close();
     has_velocity_auto_correlation_calced = true;
-    printf("----------------------------------------\n");
+    fprintf(stderr, "----------------------------------------\n");
 }
 
 double MD_system::calculate_self_diffusion_constant(bool use_coarse_estimate, int cut_off)
@@ -449,7 +449,7 @@ double MD_system::calculate_self_diffusion_constant(bool use_coarse_estimate, in
 
 void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const char *const file_name)
 {
-    printf("----------------------------------------\nCalculating stress-tensor auto-correlation:\n");
+    fprintf(stderr, "----------------------------------------\nCalculating stress-tensor auto-correlation:\n");
     // Calculate auto-correlation at several time difference tau
     std::ofstream save_correl_stream(file_name);
 
@@ -474,15 +474,15 @@ void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const cha
         x.z -= bufz;
     }
 
-    printf("Processing: 0%%");
+    fprintf(stderr, "Processing: 0%%");
 
     for (int tau = 0; tau < max_time; ++tau)
     { // Iterate over different time difference
         if ((tau + 1) * 100 / max_time > percent)
         {
             percent = (tau + 1) * 100 / max_time;
-            printf("\rProcessing: %d%%    ", percent);
-            fflush(stdout);
+            fprintf(stderr, "\rProcessing: %d%%    ", percent);
+            fflush(stderr);
         }
         stress_tensor_auto_correlation.push_back(0.); // clear
         for (int t = 0; t < stress_tensor_traj.size() - tau; ++t)
@@ -495,10 +495,10 @@ void MD_system::calculate_stress_tensor_auto_correlation(int max_time, const cha
         stress_tensor_auto_correlation[tau] /= (3. * (stress_tensor_traj.size() - tau));
         save_correl_stream << std::setprecision(17) << stress_tensor_auto_correlation[tau] << '\n';
     }
-    printf("\n");
+    fprintf(stderr, "\n");
     save_correl_stream.close();
     has_stress_tensor_auto_correlation_calced = true;
-    printf("----------------------------------------\n");
+    fprintf(stderr, "----------------------------------------\n");
 }
 
 double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate, int cut_off)
@@ -534,7 +534,7 @@ double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate
 
 void MD_system::calculate_heat_flux_auto_correlation(int max_time, const char *const file_name)
 {
-    printf("----------------------------------------\nCalculating heat-flux auto-correlation:\n");
+    fprintf(stderr, "----------------------------------------\nCalculating heat-flux auto-correlation:\n");
     // Calculate auto-correlation at several time difference tau
     std::ofstream save_correl_stream(file_name);
     heat_flux_auto_correlation.reserve(max_time);
@@ -558,15 +558,15 @@ void MD_system::calculate_heat_flux_auto_correlation(int max_time, const char *c
         x.z -= bufz;
     }
 
-    printf("Processing: 0%%");
+    fprintf(stderr, "Processing: 0%%");
 
     for (int tau = 0; tau < max_time; ++tau)
     { // Iterate over different time difference
         if ((tau + 1) * 100 / max_time > percent)
         {
             percent = (tau + 1) * 100 / max_time;
-            printf("\rProcessing: %d%%    ", percent);
-            fflush(stdout);
+            fprintf(stderr, "\rProcessing: %d%%    ", percent);
+            fflush(stderr);
         }
         heat_flux_auto_correlation.push_back(0.); // clear
         for (int t = 0; t < heat_flux_traj.size() - tau; ++t)
@@ -579,10 +579,10 @@ void MD_system::calculate_heat_flux_auto_correlation(int max_time, const char *c
         heat_flux_auto_correlation[tau] /= (3. * (heat_flux_traj.size() - tau));
         save_correl_stream << std::setprecision(17) << heat_flux_auto_correlation[tau] << '\n';
     }
-    printf("\n");
+    fprintf(stderr, "\n");
     save_correl_stream.close();
     has_heat_flux_auto_correlation_calced = true;
-    printf("----------------------------------------\n");
+    fprintf(stderr, "----------------------------------------\n");
 }
 
 double MD_system::calculate_thermal_conductivity(bool use_coarse_estimate, int cut_off)
@@ -777,8 +777,8 @@ Particle calculate_transport_properties(MD_system &sys, int init_steps, int simu
     sys.calculate_pressure = false;
 
     int percent = 0;
-    printf("Calculating pressure:----------------------------------------\n");
-    printf("preparing: 0%%");
+    fprintf(stderr, "Calculating pressure:----------------------------------------\n");
+    fprintf(stderr, "preparing: 0%%");
     double simulation_dt = sys.dt; 
     sys.dt = burn_in_dt;
     for (int i = 0; i < init_steps; i++)
@@ -787,17 +787,17 @@ Particle calculate_transport_properties(MD_system &sys, int init_steps, int simu
         if ((i + 1) * 100 / init_steps > percent)
         {
             percent = (i + 1) * 100 / init_steps;
-            printf("\rpreparing %d%%    ", percent);
-            fflush(stdout);
+            fprintf(stderr, "\rpreparing %d%%    ", percent);
+            fflush(stderr);
         }
     }
     sys.dt = simulation_dt;
-    printf("\n");
+    fprintf(stderr, "\n");
 
     sys.clear_pressure();
     sys.calculate_pressure = true;
 
-    printf("simulating: 0%%");
+    fprintf(stderr, "simulating: 0%%");
     percent = 0;
     for (int i = 0; i < simulation_steps; i++)
     {
@@ -807,11 +807,11 @@ Particle calculate_transport_properties(MD_system &sys, int init_steps, int simu
         if ((i + 1) * 100 / simulation_steps > percent)
         {
             percent = (i + 1) * 100 / simulation_steps;
-            printf("\rsimulating %d%%   ", percent);
-            fflush(stdout);
+            fprintf(stderr, "\rsimulating %d%%   ", percent);
+            fflush(stderr);
         }
     }
-    printf("\n");
+    fprintf(stderr, "\n");
 
     Particle pressure;
     pressure.px = sys.accumulate_momentum_crossed.px / sys.a / sys.a / sys.dt / simulation_steps;
