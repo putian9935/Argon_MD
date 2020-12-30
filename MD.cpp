@@ -338,6 +338,51 @@ void MD_system::calculate_viscosity_auto_correlation(int max_time, const char *c
         { // Iterate over time
             for (int j = 0; j < N; ++j)
             { // Iterate over particles
+double MD_system::calculate_shear_viscosity_coefficient(bool use_coarse_estimate, int cut_off)
+{
+    // Integrate auto-correlation over tau
+    if (!has_viscosity_auto_correlation_calced)
+        calculate_viscosity_auto_correlation();
+        
+    double rescaled_dt = dt * every_save * time_conversion_constant; // Difference between tau's
+    if (use_coarse_estimate)
+    { // use exponential decay to estimate
+        printf("Using coarse estimate...\n");
+        return viscosity_auto_correlation[0] / (log(viscosity_auto_correlation[0]) - log(viscosity_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant ;
+    }
+
+    if (cut_off > viscosity_auto_correlation.size())
+    { // too large, give a comparison
+        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", viscosity_auto_correlation[0] / (log(viscosity_auto_correlation[0]) - log(viscosity_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant );
+        cut_off = viscosity_auto_correlation.size();
+    }
+
+    printf("Using Simpson rule...\n");
+    // In order to use Simpson rule, total tau's must be an odd number
+    cut_off -= (cut_off & 1);
+    double shear_viscosity_coefficient = viscosity_auto_correlation[0] + viscosity_auto_correlation[cut_off - 1];
+    for (int i = 1; i < cut_off - 1; ++i)
+    {
+        shear_viscosity_coefficient += (2 << (i & 1)) * viscosity_auto_correlation[i];
+    }
+
+    return shear_viscosity_coefficient * rescaled_dt / 3. / pow(a, 3) / temperature * pressure_conversion_constant ; // convert viscosity into SI units!
+}
+
+Particle MD_system::accumulate_stress_tensor()
+{
+    // The three components represents: sigma_{xy}, sigma_{yz}, and sigma_{zx}, respectively
+    Particle ret; 
+    ret.x = ret.y = ret.z = 0.;
+    for(int i=0; i<N;++i)
+    {
+        ret.x += particles[i].px * particles[i].py + particles[i].x * force[i].fy; 
+        ret.y += particles[i].py * particles[i].pz + particles[i].y * force[i].fz; 
+        ret.z += particles[i].pz * particles[i].px + particles[i].z * force[i].fx; 
+    }
+    return ret;
+}
+
                viscosity_auto_correlation[tau] += (viscosity_traj[t].x * viscosity_traj[t + tau].x + viscosity_traj[t].y * viscosity_traj[t + tau].y + viscosity_traj[t].z * viscosity_traj[t + tau].z);
             }
         }
