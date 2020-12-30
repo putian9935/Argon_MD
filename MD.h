@@ -78,6 +78,9 @@ public:
     double calculate_self_diffusion_constant(bool = true, int = -1);
 
     // Viscosity 
+    std::vector<Force> full_force;
+    std::vector<double> full_potential; 
+    void accumulate_full_force_and_potential();
     std::vector<Particle> stress_tensor_traj;
     std::vector<double> stress_tensor_auto_correlation;
     bool has_stress_tensor_auto_correlation_calced;

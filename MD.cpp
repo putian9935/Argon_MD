@@ -7,7 +7,7 @@
 MD_system::MD_system(int N, double temperature, double a, int N_hoover, double dt, int every_save, bool shift_momentum)
     : N(N), temperature(temperature), a(a), N_hoover(N_hoover), dt(dt), every_save(every_save),
       shift_momentum(shift_momentum), stream_opened(false), calculate_pressure(false),
-      has_velocity_auto_correlation_calced(false)
+      has_velocity_auto_correlation_calced(false), has_stress_tensor_auto_correlation_calced(false), has_heat_flux_auto_correlation_calced(false)
 {
     particles = std::vector<Particle>(N);
     daemons = std::vector<Particle>(N_hoover);
@@ -282,9 +282,13 @@ void MD_system::clear_pressure()
     accumulate_momentum_crossed.pz = 0;
 }
 
-
+#include "helper_funcs.h"
 void MD_system::append_current_state()
 {
+    printf("hello\n");
+    accumulate_full_force_and_potential();
+    printf("hello\n");
+    input();
     stress_tensor_traj.push_back(accumulate_stress_tensor());
     heat_flux_traj.push_back(accumulate_heat_flux());
     trajectory.push_back(particles);
@@ -298,26 +302,73 @@ Particle MD_system::accumulate_stress_tensor()
     ret.x = ret.y = ret.z = 0.;
     for (int i = 0; i < N; ++i)
     {
-        ret.x += (particles[i].px * particles[i].py + .5 * (particles[i].x * force[i].fy + particles[i].y * force[i].fx));
-        ret.y += (particles[i].py * particles[i].pz + .5 * (particles[i].y * force[i].fz + particles[i].z * force[i].fy));
-        ret.z += (particles[i].pz * particles[i].px + .5 * (particles[i].z * force[i].fx + particles[i].x * force[i].fz));
+        ret.x += (particles[i].px * particles[i].py + .5 * (particles[i].x * full_force[i].fy + particles[i].y * full_force[i].fx));
+        ret.y += (particles[i].py * particles[i].pz + .5 * (particles[i].y * full_force[i].fz + particles[i].z * full_force[i].fy));
+        ret.z += (particles[i].pz * particles[i].px + .5 * (particles[i].z * full_force[i].fx + particles[i].x * full_force[i].fz));
     }
     
     return ret;
 }
 
+void MD_system::accumulate_full_force_and_potential()
+{
+    // accumulate the force and potential of each particle without any cutoff
+    // expensive function, yet called less frequently
+    for(int i = 0; i< N; ++i)
+    {
+        full_force[i].fx = full_force[i].fy = full_force[i].fz = 0.; 
+        full_potential[i] = 0.;
+    }
+    for (int i = 0; i < N; ++i)
+    {
+        for (int j = i + 1; j < N; ++j)
+        {
+            double rx = nearest_dist(particles[j].x - particles[i].x);
+            double ry = nearest_dist(particles[j].y - particles[i].y);
+            double rz = nearest_dist(particles[j].z - particles[i].z);
+
+            double r = std::sqrt(rx * rx + ry * ry + rz * rz);
+            double F = interaction_force(r);
+            full_force[j].fx += F * rx / r;
+            full_force[j].fy += F * ry / r;
+            full_force[j].fz += F * rz / r;
+
+            full_force[i].fx -= F * rx / r;
+            full_force[i].fy -= F * ry / r;
+            full_force[i].fz -= F * rz / r;
+
+            full_potential[i] += interaction_potential(r);
+            full_potential[j] += interaction_potential(r); 
+        }
+    }
+    
+}
+
+
 Particle MD_system::accumulate_heat_flux()
 {
+    // Heat flux consists of two parts: 1. particle energy 2. work done by force
     // The three components represents: sigma_{xy}, sigma_{yz}, and sigma_{zx}, respectively
     Particle ret;
     ret.x = ret.y = ret.z = 0.;
+
+    // 1. calculate particle energy
     for (int i = 0; i < N; ++i)
     {
-        ret.x += (particles[i].px * particles[i].py + .5 * (particles[i].x * force[i].fy + particles[i].y * force[i].fx));
-        ret.y += (particles[i].py * particles[i].pz + .5 * (particles[i].y * force[i].fz + particles[i].z * force[i].fy));
-        ret.z += (particles[i].pz * particles[i].px + .5 * (particles[i].z * force[i].fx + particles[i].x * force[i].fz));
+        double e = .5 * (particles[i].px * particles[i].px + particles[i].py * particles[i].py + particles[i].pz * particles[i].pz) + full_potential[i];
+        ret.x += e * particles[i].px; 
+        ret.y += e * particles[i].py;
+        ret.z += e * particles[i].pz; 
     }
-    
+
+    // 2. calculate work done by force 
+    for (int i =0; i<N; ++i)
+    {
+        double buf = full_force[i].fx * particles[i].px + full_force[i].fy * particles[i].py + full_force[i].fz * particles[i].pz;
+        ret.x += buf * particles[i].x; 
+        ret.y += buf * particles[i].y; 
+        ret.z += buf * particles[i].z; 
+    }
     return ret;
 }
 
@@ -531,29 +582,28 @@ double MD_system::calculate_thermal_conductivity(bool use_coarse_estimate, int c
     if (!has_heat_flux_auto_correlation_calced)
         calculate_heat_flux_auto_correlation();
 
-    double rescaled_dt = dt * every_save * time_conversion_constant; // Difference between tau's
+    double rescaled_dt = dt * every_save; // Difference between tau's
     if (use_coarse_estimate)
     { // use exponential decay to estimate
         printf("Using coarse estimate...\n");
-        return heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant;
+        return heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt/ pow(a, 3) / temperature / temperature * (pressure_conversion_constant / (temperature_conversion_constant * time_conversion_constant * length_conversion_constant * length_conversion_constant));
     }
 
     if (cut_off > heat_flux_auto_correlation.size())
     { // too large, give a comparison
-        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature * pressure_conversion_constant);
-        cut_off = heat_flux_auto_correlation.size();
+        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature / temperature * (pressure_conversion_constant / (temperature_conversion_constant * time_conversion_constant * length_conversion_constant * length_conversion_constant)));
     }
 
     printf("Using Simpson rule...\n");
     // In order to use Simpson rule, total tau's must be an odd number
     cut_off -= (cut_off & 1);
-    double shear_viscosity_coefficient = heat_flux_auto_correlation[0] + heat_flux_auto_correlation[cut_off - 1];
+    double thermal_conductivity = heat_flux_auto_correlation[0] + heat_flux_auto_correlation[cut_off - 1];
     for (int i = 1; i < cut_off - 1; ++i)
     {
-        shear_viscosity_coefficient += (2 << (i & 1)) * heat_flux_auto_correlation[i];
+        thermal_conductivity += (2 << (i & 1)) * heat_flux_auto_correlation[i];
     }
 
-    return shear_viscosity_coefficient * rescaled_dt / 3. / pow(a, 3) / temperature * pressure_conversion_constant; // convert viscosity into SI units!
+    return thermal_conductivity * rescaled_dt / 3. / pow(a, 3) / temperature / temperature * (pressure_conversion_constant / (temperature_conversion_constant * time_conversion_constant * length_conversion_constant * length_conversion_constant)); // convert viscosity into SI units!
 }
 
 double MD_system::get_temperature()
