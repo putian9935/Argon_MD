@@ -595,12 +595,12 @@ double MD_system::calculate_thermal_conductivity(bool use_coarse_estimate, int c
     if (use_coarse_estimate)
     { // use exponential decay to estimate
         printf("Using coarse estimate...\n");
-        return heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant ) * length_conversion_constant);
+        return heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant ));
     }
 
     if (cut_off > heat_flux_auto_correlation.size())
     { // too large, give a comparison
-        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant ) * length_conversion_constant));
+        printf("Cut off set too large, really should use coarse estimate, which yields %.6e\n", heat_flux_auto_correlation[0] / (log(heat_flux_auto_correlation[0]) - log(heat_flux_auto_correlation[1])) * rescaled_dt / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant )));
     }
 
     printf("Using Simpson rule...\n");
@@ -612,7 +612,7 @@ double MD_system::calculate_thermal_conductivity(bool use_coarse_estimate, int c
         thermal_conductivity += (2 << (i & 1)) * heat_flux_auto_correlation[i];
     }
 
-    return thermal_conductivity * rescaled_dt / 3. / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant ) * length_conversion_constant); // convert viscosity into SI units!
+    return thermal_conductivity * rescaled_dt / 3. / pow(a, 3) / temperature / temperature * (pressure_conversion_constant * length_conversion_constant * length_conversion_constant / (temperature_conversion_constant * time_conversion_constant )); // convert viscosity into SI units!
 }
 
 double MD_system::get_temperature()
